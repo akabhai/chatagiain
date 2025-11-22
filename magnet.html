@@ -4,19 +4,33 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin: Generate Room</title>
-    <!-- WebTorrent -->
+    
+    <!-- 1. CRITICAL: Node.js Environment Polyfills -->
+    <script>
+        // This forces the browser to look like Node.js so WebTorrent doesn't crash
+        window.global = window;
+        window.process = { version: '', nextTick: (cb) => setTimeout(cb, 0) };
+    </script>
+    
+    <!-- 2. Buffer Polyfill -->
+    <script src="https://cdn.jsdelivr.net/npm/buffer@6.0.3/index.min.js"></script>
+    <script>
+        // Ensure Buffer is globally available
+        window.Buffer = window.buffer.Buffer;
+    </script>
+
+    <!-- 3. WebTorrent & UI Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js"></script>
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Vue 3 -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 </head>
 <body class="bg-gray-900 text-white h-screen flex items-center justify-center font-sans">
 
     <div id="app" class="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-md border border-gray-700">
+        
         <h1 class="text-2xl font-bold mb-6 text-center text-blue-400">🔐 Admin Generator</h1>
 
-        <!-- Login -->
+        <!-- Login Section -->
         <div v-if="!isAuthenticated" class="space-y-4">
             <p class="text-gray-400 text-sm">Enter admin password to access generator.</p>
             <input type="password" v-model="password" placeholder="Password" 
@@ -28,7 +42,7 @@
             <p v-if="error" class="text-red-500 text-sm text-center">{{ error }}</p>
         </div>
 
-        <!-- Generator -->
+        <!-- Generator Section -->
         <div v-else class="space-y-6">
             <div class="bg-gray-900 p-4 rounded text-sm text-gray-300">
                 <p>Click below to create a unique WebTorrent Swarm ID.</p>
@@ -49,11 +63,13 @@
                     class="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded text-sm transition">
                     {{ copyText }}
                 </button>
+                
                 <div class="text-xs text-yellow-500 mt-2">
-                    ⚠️ <strong>Instruction:</strong> Paste this link into <code>CONFIG_MAGNET</code> in chat.html
+                    ⚠️ <strong>Instruction:</strong> Open <code>chat.html</code> and paste this link into the <code>CONFIG_MAGNET</code> variable.
                 </div>
             </div>
         </div>
+
     </div>
 
     <script>
@@ -68,12 +84,21 @@
                     magnetLink: '',
                     loading: false,
                     copyText: 'Copy Magnet',
-                    client: new WebTorrent()
+                    client: null
+                }
+            },
+            mounted() {
+                // Initialize WebTorrent only after DOM and Polyfills are ready
+                try {
+                    this.client = new WebTorrent();
+                } catch (e) {
+                    console.error("WebTorrent failed to init:", e);
+                    this.error = "Browser not supported.";
                 }
             },
             methods: {
                 login() {
-                    if (this.password === 'admin123') { // Change password here
+                    if (this.password === 'admin123') {
                         this.isAuthenticated = true;
                         this.error = '';
                     } else {
@@ -82,16 +107,31 @@
                 },
                 generateMagnet() {
                     this.loading = true;
-                    const roomName = `CHAT-ROOM-${crypto.randomUUID()}`;
                     
-                    // FIXED: Use Native File Object instead of Buffer
-                    const file = new File([roomName], "chat-beacon.txt", { type: "text/plain" });
+                    try {
+                        // Create a random buffer ID
+                        const roomName = `ROOM-${Math.random().toString(36).substring(7)}`;
+                        const buf = Buffer.from(roomName); 
+                        
+                        this.client.seed(buf, { name: 'chat-beacon' }, (torrent) => {
+                            this.magnetLink = torrent.magnetURI;
+                            this.loading = false;
+                            console.log('Room Created:', this.magnetLink);
+                        });
 
-                    this.client.seed(file, { name: 'chat-beacon' }, (torrent) => {
-                        this.magnetLink = torrent.magnetURI;
+                        // Fallback in case it gets stuck
+                        setTimeout(() => {
+                            if(this.loading) {
+                                this.loading = false;
+                                this.error = "Generation timed out. Check console.";
+                            }
+                        }, 8000);
+
+                    } catch (e) {
+                        console.error(e);
                         this.loading = false;
-                        console.log('Room created:', this.magnetLink);
-                    });
+                        this.error = "Error: " + e.message;
+                    }
                 },
                 copyToClipboard() {
                     navigator.clipboard.writeText(this.magnetLink).then(() => {
