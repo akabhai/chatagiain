@@ -5,21 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin: Generate Room</title>
     
-    <!-- 1. CRITICAL: Node.js Environment Polyfills -->
+    <!-- 1. ESSENTIAL: Polyfills for WebTorrent in Browser -->
     <script>
-        // This forces the browser to look like Node.js so WebTorrent doesn't crash
+        // Polyfill Node.js 'global' and 'process'
         window.global = window;
-        window.process = { version: '', nextTick: (cb) => setTimeout(cb, 0) };
+        window.process = { env: {}, nextTick: (cb) => setTimeout(cb, 0) };
     </script>
-    
-    <!-- 2. Buffer Polyfill -->
     <script src="https://cdn.jsdelivr.net/npm/buffer@6.0.3/index.min.js"></script>
     <script>
-        // Ensure Buffer is globally available
+        // Polyfill Buffer globally
         window.Buffer = window.buffer.Buffer;
     </script>
 
-    <!-- 3. WebTorrent & UI Libraries -->
+    <!-- 2. Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -27,12 +25,11 @@
 <body class="bg-gray-900 text-white h-screen flex items-center justify-center font-sans">
 
     <div id="app" class="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-md border border-gray-700">
-        
         <h1 class="text-2xl font-bold mb-6 text-center text-blue-400">🔐 Admin Generator</h1>
 
-        <!-- Login Section -->
+        <!-- Login -->
         <div v-if="!isAuthenticated" class="space-y-4">
-            <p class="text-gray-400 text-sm">Enter admin password to access generator.</p>
+            <p class="text-gray-400 text-sm">Enter admin password.</p>
             <input type="password" v-model="password" placeholder="Password" 
                 class="w-full p-3 rounded bg-gray-900 border border-gray-600 focus:border-blue-500 outline-none transition">
             <button @click="login" 
@@ -42,15 +39,15 @@
             <p v-if="error" class="text-red-500 text-sm text-center">{{ error }}</p>
         </div>
 
-        <!-- Generator Section -->
+        <!-- Generator -->
         <div v-else class="space-y-6">
             <div class="bg-gray-900 p-4 rounded text-sm text-gray-300">
                 <p>Click below to create a unique WebTorrent Swarm ID.</p>
             </div>
 
-            <button @click="generateMagnet" v-if="!magnetLink"
-                class="w-full bg-green-600 hover:bg-green-500 py-3 rounded font-bold transition flex items-center justify-center gap-2">
-                <span v-if="loading">Generating...</span>
+            <button @click="generateMagnet" v-if="!magnetLink" :disabled="loading"
+                class="w-full bg-green-600 hover:bg-green-500 disabled:bg-gray-600 py-3 rounded font-bold transition flex items-center justify-center gap-2">
+                <span v-if="loading">Generating (Please Wait)...</span>
                 <span v-else>Generate Magnet Link</span>
             </button>
 
@@ -63,13 +60,12 @@
                     class="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded text-sm transition">
                     {{ copyText }}
                 </button>
-                
                 <div class="text-xs text-yellow-500 mt-2">
-                    ⚠️ <strong>Instruction:</strong> Open <code>chat.html</code> and paste this link into the <code>CONFIG_MAGNET</code> variable.
+                    ⚠️ <strong>Next Step:</strong> Paste this into <code>chat.html</code> at <code>CONFIG_MAGNET</code>.
                 </div>
             </div>
+            <p v-if="error" class="text-red-400 text-xs text-center">{{ error }}</p>
         </div>
-
     </div>
 
     <script>
@@ -88,17 +84,13 @@
                 }
             },
             mounted() {
-                // Initialize WebTorrent only after DOM and Polyfills are ready
-                try {
-                    this.client = new WebTorrent();
-                } catch (e) {
-                    console.error("WebTorrent failed to init:", e);
-                    this.error = "Browser not supported.";
-                }
+                // Initialize WebTorrent client
+                this.client = new WebTorrent();
             },
             methods: {
                 login() {
-                    if (this.password === 'admin123') {
+                    // Password check
+                    if (this.password === 'admin123') { 
                         this.isAuthenticated = true;
                         this.error = '';
                     } else {
@@ -107,30 +99,35 @@
                 },
                 generateMagnet() {
                     this.loading = true;
-                    
+                    this.error = '';
+
                     try {
-                        // Create a random buffer ID
-                        const roomName = `ROOM-${Math.random().toString(36).substring(7)}`;
-                        const buf = Buffer.from(roomName); 
+                        // 1. Generate a unique room ID
+                        const roomId = 'CHAT-ROOM-' + Math.random().toString(36).substr(2, 9);
                         
-                        this.client.seed(buf, { name: 'chat-beacon' }, (torrent) => {
+                        // 2. Create a Browser "File" Object
+                        // We do NOT use Buffer here to avoid compatibility issues.
+                        const file = new File([roomId], "chat-beacon.txt", { type: "text/plain" });
+
+                        // 3. Seed the file to generate the magnet
+                        this.client.seed(file, { name: 'chat-beacon' }, (torrent) => {
                             this.magnetLink = torrent.magnetURI;
                             this.loading = false;
-                            console.log('Room Created:', this.magnetLink);
+                            console.log('Swarm created:', this.magnetLink);
                         });
 
-                        // Fallback in case it gets stuck
+                        // 4. Fallback timeout
                         setTimeout(() => {
-                            if(this.loading) {
+                            if (this.loading) {
                                 this.loading = false;
-                                this.error = "Generation timed out. Check console.";
+                                this.error = "Generation took too long. Check console for browser restrictions.";
                             }
-                        }, 8000);
+                        }, 15000);
 
                     } catch (e) {
-                        console.error(e);
+                        this.error = e.message;
                         this.loading = false;
-                        this.error = "Error: " + e.message;
+                        console.error(e);
                     }
                 },
                 copyToClipboard() {
