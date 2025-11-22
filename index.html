@@ -5,22 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Anonymous P2P Chat</title>
     
-    <!-- 1. CRITICAL: Node.js Environment Polyfills -->
+    <!-- 1. ESSENTIAL: Polyfills -->
     <script>
         window.global = window;
-        window.process = { version: '', nextTick: (cb) => setTimeout(cb, 0) };
+        window.process = { env: {}, nextTick: (cb) => setTimeout(cb, 0) };
     </script>
-    
-    <!-- 2. Buffer Polyfill -->
     <script src="https://cdn.jsdelivr.net/npm/buffer@6.0.3/index.min.js"></script>
     <script> window.Buffer = window.buffer.Buffer; </script>
 
-    <!-- Libraries -->
+    <!-- 2. Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    
     <style>
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #1f2937; }
@@ -39,6 +38,7 @@
     </script>
 
     <div id="app" class="flex h-full">
+
         <!-- Sidebar -->
         <div class="hidden md:flex flex-col w-64 bg-gray-800 border-r border-gray-700">
             <div class="p-4 border-b border-gray-700 bg-gray-800">
@@ -60,10 +60,9 @@
                     </div>
                 </div>
             </div>
-            <div class="p-4 border-t border-gray-700 text-xs text-gray-500 text-center">Auto-delete > 30 Days</div>
         </div>
 
-        <!-- Main Chat -->
+        <!-- Chat Area -->
         <div class="flex-1 flex flex-col bg-gray-900 relative">
             <div class="md:hidden p-3 bg-gray-800 border-b border-gray-700 flex justify-between items-center shadow-md z-10">
                 <span class="font-bold text-white">P2P Group ({{ onlineUsers }})</span>
@@ -71,22 +70,34 @@
             </div>
 
             <div id="chat-container" class="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth">
-                <div class="flex justify-center my-4"><span class="bg-gray-800 text-gray-400 text-xs px-3 py-1 rounded-full">Encrypted P2P Connection Established.</span></div>
+                <div class="flex justify-center my-4">
+                    <span class="bg-gray-800 text-gray-400 text-xs px-3 py-1 rounded-full">Encrypted Swarm. No Server History.</span>
+                </div>
                 
                 <div v-for="msg in messages" :key="msg.id" class="msg-anim flex flex-col" :class="msg.isMe ? 'items-end' : 'items-start'">
                     <span v-if="!msg.isMe" class="text-xs text-gray-400 mb-1 ml-1">{{ msg.senderName }}</span>
-                    <div class="max-w-[85%] md:max-w-[60%] p-3 rounded-2xl shadow-md relative" :class="msg.isMe ? 'bg-blue-600 text-white rounded-br-none' : 'bg-gray-800 text-gray-200 rounded-bl-none'">
+                    <div class="max-w-[85%] md:max-w-[60%] p-3 rounded-2xl shadow-md relative" 
+                         :class="msg.isMe ? 'bg-blue-600 text-white rounded-br-none' : 'bg-gray-800 text-gray-200 rounded-bl-none'">
+                        
                         <p v-if="msg.type === 'text'" class="whitespace-pre-wrap break-words">{{ msg.content }}</p>
+
                         <div v-if="msg.type === 'file'" class="w-64">
                             <div class="flex items-center gap-3 mb-2">
                                 <div class="bg-gray-700 p-2 rounded text-blue-400"><i class="fas fa-file fa-lg"></i></div>
-                                <div class="overflow-hidden"><p class="text-sm font-bold truncate">{{ msg.fileInfo.name }}</p><p class="text-xs opacity-70">{{ formatSize(msg.fileInfo.size) }}</p></div>
+                                <div class="overflow-hidden">
+                                    <p class="text-sm font-bold truncate">{{ msg.fileInfo.name }}</p>
+                                    <p class="text-xs opacity-70">{{ formatSize(msg.fileInfo.size) }}</p>
+                                </div>
                             </div>
                             <div v-if="!msg.isMe && !msg.downloaded && !msg.downloading" class="flex gap-2 mt-2">
                                 <button @click="acceptFile(msg)" class="flex-1 bg-green-600 hover:bg-green-500 py-1 rounded text-xs font-bold transition">Accept</button>
                                 <button class="flex-1 bg-gray-700 hover:bg-gray-600 py-1 rounded text-xs transition">Reject</button>
                             </div>
-                            <div v-if="msg.downloading" class="mt-2"><div class="h-1 w-full bg-gray-700 rounded overflow-hidden"><div class="h-full bg-green-400 transition-all duration-300" :style="{width: msg.progress + '%'}"></div></div></div>
+                            <div v-if="msg.downloading" class="mt-2">
+                                <div class="h-1 w-full bg-gray-700 rounded overflow-hidden">
+                                    <div class="h-full bg-green-400 transition-all duration-300" :style="{width: msg.progress + '%'}"></div>
+                                </div>
+                            </div>
                             <a v-if="msg.fileBlobUrl" :href="msg.fileBlobUrl" :download="msg.fileInfo.name" class="block text-center bg-gray-700 hover:bg-gray-600 py-1 mt-2 rounded text-xs transition">Open File</a>
                         </div>
                         <p class="text-[10px] text-right mt-1 opacity-60">{{ formatTime(msg.timestamp) }}</p>
@@ -112,17 +123,21 @@
                 this.name = 'chat_ext';
             }
             onExtendedHandshake(handshake) {
-                if (handshake.m && handshake.m.chat_ext) this.wire.peerSupportsChat = true;
+                if (handshake.m && handshake.m.chat_ext) {
+                    this.wire.peerSupportsChat = true;
+                }
             }
             onMessage(buf) {
                 try {
-                    const msg = JSON.parse(buf.toString());
+                    const str = buf.toString();
+                    const msg = JSON.parse(str);
                     window.dispatchEvent(new CustomEvent('p2p-msg', { detail: msg }));
-                } catch (e) { console.error(e); }
+                } catch (e) { console.error("Msg Error", e); }
             }
             send(msgObj) {
                 if (this.wire.peerSupportsChat) {
-                    this.wire.extended('chat_ext', Buffer.from(JSON.stringify(msgObj)));
+                    const buf = Buffer.from(JSON.stringify(msgObj));
+                    this.wire.extended('chat_ext', buf);
                 }
             }
         }
@@ -135,7 +150,11 @@
                     messages: [],
                     inputText: '',
                     peers: [],
-                    myUser: { id: crypto.randomUUID(), name: 'User-' + Math.floor(Math.random() * 9999), color: '#' + Math.floor(Math.random()*16777215).toString(16) },
+                    myUser: { 
+                        id: Math.random().toString(36).substr(2, 9), 
+                        name: 'User-' + Math.floor(Math.random() * 9999), 
+                        color: '#' + Math.floor(Math.random()*16777215).toString(16) 
+                    },
                     typingTimeout: null
                 }
             },
@@ -143,30 +162,59 @@
             async mounted() {
                 if (!this.magnet) {
                     const input = prompt("Enter Room Magnet Link:");
-                    if (input) { this.magnet = input; localStorage.setItem('chat_magnet', input); } 
-                    else return;
+                    if (input) { 
+                        this.magnet = input; 
+                        localStorage.setItem('chat_magnet', input); 
+                    } else return;
                 }
+
                 await this.loadHistory();
                 this.performCleanup();
 
                 this.client = new WebTorrent();
-                const trackers = ["wss://tracker.openwebtorrent.com", "wss://tracker.btorrent.xyz", "wss://tracker.webtorrent.dev"];
-                
-                const torrent = this.client.add(this.magnet, { announce: trackers }, () => console.log('Joined swarm'));
-
-                torrent.on('wire', (wire) => {
-                    wire.use(ChatExtension);
-                    this.addPeer(wire.peerId);
-                    setTimeout(() => this.broadcast({ type: 'presence', user: this.myUser }), 1000);
-                });
+                this.joinSwarmSafe(this.magnet);
 
                 window.addEventListener('p2p-msg', (e) => this.handleIncomingMessage(e.detail));
                 setInterval(() => { this.peers.forEach(p => p.typing = false); }, 3000);
             },
             methods: {
+                // --- SAFELY JOIN SWARM (Prevents Duplicate Error) ---
+                joinSwarmSafe(magnetURI) {
+                    if (this.client.get(magnetURI)) {
+                        console.log("Already joined this swarm.");
+                        return;
+                    }
+
+                    const trackers = [
+                        "wss://tracker.openwebtorrent.com",
+                        "wss://tracker.btorrent.xyz",
+                        "wss://tracker.webtorrent.dev"
+                    ];
+                    
+                    const torrent = this.client.add(magnetURI, { announce: trackers }, () => {
+                        console.log('Joined swarm successfully.');
+                    });
+
+                    torrent.on('wire', (wire) => {
+                        wire.use(ChatExtension);
+                        const peerId = wire.peerId;
+                        if (!this.peers.find(p => p.id === peerId)) {
+                            this.peers.push({ id: peerId, name: 'Joining...', color: '#555' });
+                        }
+                        setTimeout(() => this.broadcast({ type: 'presence', user: this.myUser }), 1500);
+                    });
+                },
+
                 sendMessage() {
                     if (!this.inputText.trim()) return;
-                    const msg = { id: crypto.randomUUID(), type: 'text', content: this.inputText, senderId: this.myUser.id, senderName: this.myUser.name, timestamp: Date.now() };
+                    const msg = { 
+                        id: Math.random().toString(36).substr(2, 9), 
+                        type: 'text', 
+                        content: this.inputText, 
+                        senderId: this.myUser.id, 
+                        senderName: this.myUser.name, 
+                        timestamp: Date.now() 
+                    };
                     this.messages.push({...msg, isMe: true});
                     this.saveMessage(msg);
                     this.broadcast(msg);
@@ -176,15 +224,22 @@
                 broadcast(msgObj) {
                     if (!this.client || !this.client.torrents[0]) return;
                     this.client.torrents[0].wires.forEach(wire => {
-                        if (wire.peerSupportsChat) wire.extended('chat_ext', Buffer.from(JSON.stringify(msgObj)));
+                        if (wire.peerSupportsChat) {
+                             wire.extended('chat_ext', Buffer.from(JSON.stringify(msgObj)));
+                        }
                     });
                 },
                 handleIncomingMessage(data) {
-                    if (data.type === 'presence') this.updatePeerInfo(data.user);
+                    if (data.type === 'presence') {
+                        const idx = this.peers.findIndex(p => p.id === data.user.id) || this.peers.findIndex(p => p.name === 'Joining...');
+                        if (idx !== -1) this.peers[idx] = { ...this.peers[idx], ...data.user };
+                        else this.peers.push(data.user);
+                    } 
                     else if (data.type === 'typing') {
                         const p = this.peers.find(x => x.id === data.senderId);
                         if (p) { p.typing = true; setTimeout(() => p.typing = false, 2000); }
-                    } else if (data.type === 'text' || data.type === 'file') {
+                    } 
+                    else if (data.type === 'text' || data.type === 'file') {
                         if (this.messages.find(m => m.id === data.id)) return;
                         this.messages.push({ ...data, isMe: false, downloading: false, progress: 0 });
                         this.saveMessage(data);
@@ -195,7 +250,14 @@
                     const file = e.target.files[0];
                     if (!file) return;
                     this.client.seed(file, (torrent) => {
-                        const msg = { id: crypto.randomUUID(), type: 'file', senderId: this.myUser.id, senderName: this.myUser.name, timestamp: Date.now(), fileInfo: { name: file.name, size: file.size, magnet: torrent.magnetURI } };
+                        const msg = { 
+                            id: Math.random().toString(36).substr(2, 9), 
+                            type: 'file', 
+                            senderId: this.myUser.id, 
+                            senderName: this.myUser.name, 
+                            timestamp: Date.now(), 
+                            fileInfo: { name: file.name, size: file.size, magnet: torrent.magnetURI } 
+                        };
                         this.messages.push({...msg, isMe: true, fileBlobUrl: null});
                         this.saveMessage(msg);
                         this.broadcast(msg);
@@ -204,6 +266,13 @@
                 },
                 acceptFile(msg) {
                     if (msg.downloading || msg.downloaded) return;
+                    
+                    // CHECK FOR DUPLICATES HERE TOO
+                    if(this.client.get(msg.fileInfo.magnet)) {
+                         alert("You are already downloading or seeding this file.");
+                         return;
+                    }
+
                     msg.downloading = true;
                     this.client.add(msg.fileInfo.magnet, (torrent) => {
                         torrent.on('download', () => { msg.progress = torrent.progress * 100; });
@@ -217,12 +286,6 @@
                     if (this.typingTimeout) clearTimeout(this.typingTimeout);
                     this.broadcast({ type: 'typing', senderId: this.myUser.id });
                     this.typingTimeout = setTimeout(() => {}, 2000);
-                },
-                addPeer(id) { if (!this.peers.find(p => p.id === id)) this.peers.push({ id, name: 'Peer', color: '#555', typing: false }); },
-                updatePeerInfo(user) {
-                    const idx = this.peers.findIndex(p => p.id === user.id);
-                    if (idx !== -1) this.peers[idx] = { ...this.peers[idx], ...user };
-                    else this.peers.push(user);
                 },
                 async loadHistory() {
                     const raw = localStorage.getItem('chat_history');
