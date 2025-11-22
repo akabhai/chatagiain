@@ -4,28 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin: Generate Room</title>
-    
-    <!-- 1. Buffer Polyfill (Fixes the error) -->
-    <script src="https://cdn.jsdelivr.net/npm/buffer@6.0.3/index.min.js"></script>
-    <script>
-        // Expose Buffer globally so WebTorrent can use it
-        window.Buffer = window.buffer.Buffer; 
-    </script>
-
-    <!-- 2. WebTorrent -->
+    <!-- WebTorrent -->
     <script src="https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js"></script>
-    <!-- 3. Tailwind CSS -->
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 4. Vue 3 -->
+    <!-- Vue 3 -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 </head>
 <body class="bg-gray-900 text-white h-screen flex items-center justify-center font-sans">
 
     <div id="app" class="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-md border border-gray-700">
-        
         <h1 class="text-2xl font-bold mb-6 text-center text-blue-400">🔐 Admin Generator</h1>
 
-        <!-- Login Section -->
+        <!-- Login -->
         <div v-if="!isAuthenticated" class="space-y-4">
             <p class="text-gray-400 text-sm">Enter admin password to access generator.</p>
             <input type="password" v-model="password" placeholder="Password" 
@@ -37,7 +28,7 @@
             <p v-if="error" class="text-red-500 text-sm text-center">{{ error }}</p>
         </div>
 
-        <!-- Generator Section -->
+        <!-- Generator -->
         <div v-else class="space-y-6">
             <div class="bg-gray-900 p-4 rounded text-sm text-gray-300">
                 <p>Click below to create a unique WebTorrent Swarm ID.</p>
@@ -50,7 +41,7 @@
             </button>
 
             <!-- Result -->
-            <div v-if="magnetLink" class="space-y-3 animate-fade-in">
+            <div v-if="magnetLink" class="space-y-3">
                 <label class="text-xs uppercase text-gray-500 font-bold">Room Magnet Link</label>
                 <textarea readonly class="w-full h-32 p-3 text-xs bg-black font-mono text-green-400 rounded resize-none focus:outline-none">{{ magnetLink }}</textarea>
                 
@@ -58,13 +49,11 @@
                     class="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded text-sm transition">
                     {{ copyText }}
                 </button>
-                
                 <div class="text-xs text-yellow-500 mt-2">
-                    ⚠️ <strong>Instruction:</strong> Open <code>chat.html</code> and paste this link into the <code>CONFIG_MAGNET</code> variable at the top of the script.
+                    ⚠️ <strong>Instruction:</strong> Paste this link into <code>CONFIG_MAGNET</code> in chat.html
                 </div>
             </div>
         </div>
-
     </div>
 
     <script>
@@ -74,7 +63,7 @@
             data() {
                 return {
                     password: '',
-                    isAuthenticated: false, 
+                    isAuthenticated: false,
                     error: '',
                     magnetLink: '',
                     loading: false,
@@ -84,8 +73,7 @@
             },
             methods: {
                 login() {
-                    // Change password here if needed
-                    if (this.password === 'admin123') {
+                    if (this.password === 'admin123') { // Change password here
                         this.isAuthenticated = true;
                         this.error = '';
                     } else {
@@ -94,18 +82,15 @@
                 },
                 generateMagnet() {
                     this.loading = true;
-                    // Create a unique identifier
                     const roomName = `CHAT-ROOM-${crypto.randomUUID()}`;
                     
-                    // Convert to Buffer safely using our polyfill
-                    const buf = Buffer.from(roomName);
-                    
-                    // Seed this buffer to create the magnet link
-                    // We give it a name so the chat client can identify the "Beacon" file
-                    this.client.seed(buf, { name: 'chat-beacon' }, (torrent) => {
+                    // FIXED: Use Native File Object instead of Buffer
+                    const file = new File([roomName], "chat-beacon.txt", { type: "text/plain" });
+
+                    this.client.seed(file, { name: 'chat-beacon' }, (torrent) => {
                         this.magnetLink = torrent.magnetURI;
                         this.loading = false;
-                        console.log('Generated:', this.magnetLink);
+                        console.log('Room created:', this.magnetLink);
                     });
                 },
                 copyToClipboard() {
