@@ -4,11 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin: Generate Room</title>
-    <!-- WebTorrent -->
+    
+    <!-- 1. Buffer Polyfill (Fixes the error) -->
+    <script src="https://cdn.jsdelivr.net/npm/buffer@6.0.3/index.min.js"></script>
+    <script>
+        // Expose Buffer globally so WebTorrent can use it
+        window.Buffer = window.buffer.Buffer; 
+    </script>
+
+    <!-- 2. WebTorrent -->
     <script src="https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js"></script>
-    <!-- Tailwind CSS -->
+    <!-- 3. Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Vue 3 -->
+    <!-- 4. Vue 3 -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 </head>
 <body class="bg-gray-900 text-white h-screen flex items-center justify-center font-sans">
@@ -66,7 +74,7 @@
             data() {
                 return {
                     password: '',
-                    isAuthenticated: false, // Client-side only for demo
+                    isAuthenticated: false, 
                     error: '',
                     magnetLink: '',
                     loading: false,
@@ -76,7 +84,7 @@
             },
             methods: {
                 login() {
-                    // Simple client-side check. Change 'admin123' to your desired password.
+                    // Change password here if needed
                     if (this.password === 'admin123') {
                         this.isAuthenticated = true;
                         this.error = '';
@@ -86,14 +94,18 @@
                 },
                 generateMagnet() {
                     this.loading = true;
-                    // Create a unique buffer to define the swarm
+                    // Create a unique identifier
                     const roomName = `CHAT-ROOM-${crypto.randomUUID()}`;
+                    
+                    // Convert to Buffer safely using our polyfill
                     const buf = Buffer.from(roomName);
                     
                     // Seed this buffer to create the magnet link
-                    this.client.seed(buf, { name: 'chat-room-beacon' }, (torrent) => {
+                    // We give it a name so the chat client can identify the "Beacon" file
+                    this.client.seed(buf, { name: 'chat-beacon' }, (torrent) => {
                         this.magnetLink = torrent.magnetURI;
                         this.loading = false;
+                        console.log('Generated:', this.magnetLink);
                     });
                 },
                 copyToClipboard() {
