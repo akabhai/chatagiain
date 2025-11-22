@@ -5,17 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin: Generate Room</title>
     
-    <!-- 1. ESSENTIAL: Polyfills for WebTorrent in Browser -->
+    <!-- 1. Global Polyfills (REQUIRED) -->
     <script>
-        // Polyfill Node.js 'global' and 'process'
         window.global = window;
         window.process = { env: {}, nextTick: (cb) => setTimeout(cb, 0) };
     </script>
     <script src="https://cdn.jsdelivr.net/npm/buffer@6.0.3/index.min.js"></script>
-    <script>
-        // Polyfill Buffer globally
-        window.Buffer = window.buffer.Buffer;
-    </script>
+    <script> window.Buffer = window.buffer.Buffer; </script>
 
     <!-- 2. Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js"></script>
@@ -45,9 +41,9 @@
                 <p>Click below to create a unique WebTorrent Swarm ID.</p>
             </div>
 
-            <button @click="generateMagnet" v-if="!magnetLink" :disabled="loading"
+            <button @click="generateMagnet" :disabled="loading"
                 class="w-full bg-green-600 hover:bg-green-500 disabled:bg-gray-600 py-3 rounded font-bold transition flex items-center justify-center gap-2">
-                <span v-if="loading">Generating (Please Wait)...</span>
+                <span v-if="loading">Generating...</span>
                 <span v-else>Generate Magnet Link</span>
             </button>
 
@@ -61,7 +57,7 @@
                     {{ copyText }}
                 </button>
                 <div class="text-xs text-yellow-500 mt-2">
-                    ⚠️ <strong>Next Step:</strong> Paste this into <code>chat.html</code> at <code>CONFIG_MAGNET</code>.
+                    ⚠️ <strong>Next Step:</strong> Paste this into <code>chat.html</code>.
                 </div>
             </div>
             <p v-if="error" class="text-red-400 text-xs text-center">{{ error }}</p>
@@ -84,12 +80,10 @@
                 }
             },
             mounted() {
-                // Initialize WebTorrent client
                 this.client = new WebTorrent();
             },
             methods: {
                 login() {
-                    // Password check
                     if (this.password === 'admin123') { 
                         this.isAuthenticated = true;
                         this.error = '';
@@ -100,34 +94,25 @@
                 generateMagnet() {
                     this.loading = true;
                     this.error = '';
+                    this.magnetLink = '';
 
                     try {
-                        // 1. Generate a unique room ID
-                        const roomId = 'CHAT-ROOM-' + Math.random().toString(36).substr(2, 9);
+                        // 1. Generate Random ID
+                        const roomId = 'CHAT-ROOM-' + Math.random().toString(36).substr(2, 9) + '-' + Date.now();
                         
-                        // 2. Create a Browser "File" Object
-                        // We do NOT use Buffer here to avoid compatibility issues.
+                        // 2. Create File
                         const file = new File([roomId], "chat-beacon.txt", { type: "text/plain" });
 
-                        // 3. Seed the file to generate the magnet
+                        // 3. Seed (Safe Mode)
                         this.client.seed(file, { name: 'chat-beacon' }, (torrent) => {
                             this.magnetLink = torrent.magnetURI;
                             this.loading = false;
                             console.log('Swarm created:', this.magnetLink);
                         });
 
-                        // 4. Fallback timeout
-                        setTimeout(() => {
-                            if (this.loading) {
-                                this.loading = false;
-                                this.error = "Generation took too long. Check console for browser restrictions.";
-                            }
-                        }, 15000);
-
                     } catch (e) {
                         this.error = e.message;
                         this.loading = false;
-                        console.error(e);
                     }
                 },
                 copyToClipboard() {
