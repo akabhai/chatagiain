@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Anonymous P2P Chat</title>
+    
+    <!-- 1. Buffer Polyfill (Required for Message Encoding) -->
+    <script src="https://cdn.jsdelivr.net/npm/buffer@6.0.3/index.min.js"></script>
+    <script> window.Buffer = window.buffer.Buffer; </script>
+
     <!-- Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -182,6 +187,7 @@
             }
             send(msgObj) {
                 if (this.wire.peerSupportsChat) {
+                    // Safe to use Buffer.from now that the polyfill is in <head>
                     this.wire.extended('chat_ext', Buffer.from(JSON.stringify(msgObj)));
                 }
             }
@@ -214,7 +220,7 @@
                         this.magnet = input;
                         localStorage.setItem('chat_magnet', input);
                     } else {
-                        alert("Magnet link required.");
+                        alert("Magnet link required. Please refresh and enter it.");
                         return;
                     }
                 }
@@ -234,7 +240,6 @@
                 ];
                 
                 // Add the room torrent. This acts as the signaling "Lobby".
-                // We don't actually care about downloading the beacon file, just finding peers.
                 const torrent = this.client.add(this.magnet, { announce: trackers }, (torrent) => {
                     console.log('Joined swarm.');
                 });
@@ -388,13 +393,11 @@
 
                 // --- Peer Management ---
                 addPeer(id) {
-                    // Temporary placeholder until handshake
                     if (!this.peers.find(p => p.id === id)) {
-                        this.peers.push({ id: id, name: 'Unknown', color: '#555', typing: false });
+                        this.peers.push({ id: id, name: 'Connecting...', color: '#555', typing: false });
                     }
                 },
                 updatePeerInfo(user) {
-                    // Check if peer exists by UserID (preferred) or update by logic
                     const idx = this.peers.findIndex(p => p.id === user.id);
                     if (idx !== -1) {
                         this.peers[idx] = { ...this.peers[idx], ...user };
@@ -411,12 +414,11 @@
                             ...m, 
                             isMe: m.senderId === this.myUser.id,
                             downloading: false,
-                            progress: 0 // reset state
+                            progress: 0
                         }));
                     }
                 },
                 saveMessage(msg) {
-                    // Strip bulky non-serializable data before saving
                     const saveable = {
                         id: msg.id,
                         type: msg.type,
