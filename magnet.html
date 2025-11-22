@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin: Generate Room</title>
+    <!-- WebTorrent -->
+    <script src="https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body class="bg-gray-900 text-white h-screen flex items-center justify-center font-sans">
+
+    <div id="app" class="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-md border border-gray-700">
+        
+        <h1 class="text-2xl font-bold mb-6 text-center text-blue-400">🔐 Admin Generator</h1>
+
+        <!-- Login Section -->
+        <div v-if="!isAuthenticated" class="space-y-4">
+            <p class="text-gray-400 text-sm">Enter admin password to access generator.</p>
+            <input type="password" v-model="password" placeholder="Password" 
+                class="w-full p-3 rounded bg-gray-900 border border-gray-600 focus:border-blue-500 outline-none transition">
+            <button @click="login" 
+                class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded font-bold transition">
+                Access
+            </button>
+            <p v-if="error" class="text-red-500 text-sm text-center">{{ error }}</p>
+        </div>
+
+        <!-- Generator Section -->
+        <div v-else class="space-y-6">
+            <div class="bg-gray-900 p-4 rounded text-sm text-gray-300">
+                <p>Click below to create a unique WebTorrent Swarm ID.</p>
+            </div>
+
+            <button @click="generateMagnet" v-if="!magnetLink"
+                class="w-full bg-green-600 hover:bg-green-500 py-3 rounded font-bold transition flex items-center justify-center gap-2">
+                <span v-if="loading">Generating...</span>
+                <span v-else>Generate Magnet Link</span>
+            </button>
+
+            <!-- Result -->
+            <div v-if="magnetLink" class="space-y-3 animate-fade-in">
+                <label class="text-xs uppercase text-gray-500 font-bold">Room Magnet Link</label>
+                <textarea readonly class="w-full h-32 p-3 text-xs bg-black font-mono text-green-400 rounded resize-none focus:outline-none">{{ magnetLink }}</textarea>
+                
+                <button @click="copyToClipboard" 
+                    class="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded text-sm transition">
+                    {{ copyText }}
+                </button>
+                
+                <div class="text-xs text-yellow-500 mt-2">
+                    ⚠️ <strong>Instruction:</strong> Open <code>chat.html</code> and paste this link into the <code>CONFIG_MAGNET</code> variable at the top of the script.
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    password: '',
+                    isAuthenticated: false, // Client-side only for demo
+                    error: '',
+                    magnetLink: '',
+                    loading: false,
+                    copyText: 'Copy Magnet',
+                    client: new WebTorrent()
+                }
+            },
+            methods: {
+                login() {
+                    // Simple client-side check. Change 'admin123' to your desired password.
+                    if (this.password === 'admin123') {
+                        this.isAuthenticated = true;
+                        this.error = '';
+                    } else {
+                        this.error = 'Access Denied';
+                    }
+                },
+                generateMagnet() {
+                    this.loading = true;
+                    // Create a unique buffer to define the swarm
+                    const roomName = `CHAT-ROOM-${crypto.randomUUID()}`;
+                    const buf = Buffer.from(roomName);
+                    
+                    // Seed this buffer to create the magnet link
+                    this.client.seed(buf, { name: 'chat-room-beacon' }, (torrent) => {
+                        this.magnetLink = torrent.magnetURI;
+                        this.loading = false;
+                    });
+                },
+                copyToClipboard() {
+                    navigator.clipboard.writeText(this.magnetLink).then(() => {
+                        this.copyText = 'Copied!';
+                        setTimeout(() => this.copyText = 'Copy Magnet', 2000);
+                    });
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
